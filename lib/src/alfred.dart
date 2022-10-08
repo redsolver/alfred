@@ -272,7 +272,7 @@ class Alfred {
     _server.idleTimeout = Duration(seconds: 1);
 
     _server.listen((HttpRequest request) {
-      requestQueue.add(() => _incomingRequest(request));
+      requestQueue.add(() => incomingRequest(request));
     });
 
     logWriter(
@@ -298,7 +298,7 @@ class Alfred {
     _server.idleTimeout = Duration(seconds: 1);
 
     _server.listen((HttpRequest request) {
-      requestQueue.add(() => _incomingRequest(request));
+      requestQueue.add(() => incomingRequest(request));
     });
 
     logWriter(
@@ -308,7 +308,7 @@ class Alfred {
 
   /// Handles and routes an incoming request
   ///
-  Future<void> _incomingRequest(HttpRequest request) async {
+  Future<void> incomingRequest(HttpRequest request) async {
     /// Expose this Alfred instance for middleware or other utility functions
     request.store.set('_internal_alfred', this);
 
