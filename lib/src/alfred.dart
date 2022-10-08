@@ -1,18 +1,27 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:alfred/src/extensions/request_helpers.dart';
-import 'package:alfred/src/plugins/store_plugin.dart';
-import 'package:alfred/src/type_handlers/binary_type_handlers.dart';
-import 'package:alfred/src/type_handlers/directory_type_handler.dart';
-import 'package:alfred/src/type_handlers/file_type_handler.dart';
-import 'package:alfred/src/type_handlers/json_type_handlers.dart';
-import 'package:alfred/src/type_handlers/serializable_type_handler.dart';
-import 'package:alfred/src/type_handlers/string_type_handler.dart';
-import 'package:alfred/src/type_handlers/type_handler.dart';
-import 'package:alfred/src/type_handlers/websocket_type_handler.dart';
 import 'package:enum_to_string/enum_to_string.dart';
 import 'package:queue/queue.dart';
+
+import 'extensions/request_helpers.dart';
+import 'plugins/store_plugin.dart';
+import 'route_param_types/alpha_param_type.dart';
+import 'route_param_types/date_param_type.dart';
+import 'route_param_types/double_param_type.dart';
+import 'route_param_types/hex_param_type.dart';
+import 'route_param_types/int_param_type.dart';
+import 'route_param_types/timestamp_param_type.dart';
+import 'route_param_types/uint_param_type.dart';
+import 'route_param_types/uuid_param_type.dart';
+import 'type_handlers/binary_type_handlers.dart';
+import 'type_handlers/directory_type_handler.dart';
+import 'type_handlers/file_type_handler.dart';
+import 'type_handlers/json_type_handlers.dart';
+import 'type_handlers/serializable_type_handler.dart';
+import 'type_handlers/string_type_handler.dart';
+import 'type_handlers/type_handler.dart';
+import 'type_handlers/websocket_type_handler.dart';
 
 import 'alfred_exception.dart';
 import 'http_route.dart';
@@ -119,6 +128,7 @@ class Alfred {
     LogType logLevel = LogType.info,
     int simultaneousProcessing = 50,
   }) : requestQueue = Queue(parallel: simultaneousProcessing) {
+    _registerDefaultParamTypes();
     _registerDefaultTypeHandlers();
     _registerPluginListeners();
     _registerDefaultLogWriter(logLevel);
@@ -143,10 +153,25 @@ class Alfred {
       binaryStreamTypeHandler,
       jsonListTypeHandler,
       jsonMapTypeHandler,
+      jsonNumberTypeHandler,
+      jsonBooleanTypeHandler,
       fileTypeHandler,
       directoryTypeHandler,
       websocketTypeHandler,
       serializableTypeHandler
+    ]);
+  }
+
+  void _registerDefaultParamTypes() {
+    HttpRouteParam.paramTypes.addAll([
+      IntParamType(),
+      UintParamType(),
+      DoubleParamType(),
+      DateParamType(),
+      TimestampParamType(),
+      HexParamType(),
+      AlphaParamType(),
+      UuidParamType()
     ]);
   }
 
@@ -230,9 +255,47 @@ class Alfred {
 
   /// Call this function to fire off the server.
   ///
-  Future<HttpServer> listen(
-      [int port = 3000, dynamic bindIp = '0.0.0.0', bool shared = true]) async {
-    final _server = await HttpServer.bind(bindIp, port, shared: shared);
+  ///
+  ///
+  Future<HttpServer> listen([
+    int port = 3000,
+    dynamic bindIp = '0.0.0.0',
+    bool shared = true,
+    int backlog = 0,
+  ]) async {
+    final _server = await HttpServer.bind(
+      bindIp,
+      port,
+      backlog: backlog,
+      shared: shared,
+    );
+
+    _server.idleTimeout = Duration(seconds: 1);
+
+    _server.listen((HttpRequest request) {
+      requestQueue.add(() => _incomingRequest(request));
+    });
+
+    logWriter(
+        () => 'HTTP Server listening on port ${_server.port}', LogType.info);
+    return server = _server;
+  }
+
+  Future<HttpServer> listenSecure({
+    required SecurityContext securityContext,
+    int port = 3000,
+    dynamic bindIp = '0.0.0.0',
+    bool shared = true,
+    int backlog = 0,
+  }) async {
+    final _server = await HttpServer.bindSecure(
+      bindIp,
+      port,
+      securityContext,
+      backlog: backlog,
+      shared: shared,
+    );
+
     _server.idleTimeout = Duration(seconds: 1);
 
     _server.listen((HttpRequest request) {
@@ -267,7 +330,7 @@ class Alfred {
     }));
 
     // Work out all the routes we need to process
-    final effectiveRoutes = RouteMatcher.match(
+    final effectiveMatches = RouteMatcher.match(
         request.uri.toString(),
         routes,
         EnumToString.fromString<Method>(Method.values, request.method) ??
@@ -277,7 +340,7 @@ class Alfred {
       // If there are no effective routes, that means we need to throw a 404
       // or see if there are any static routes to fall back to, otherwise
       // continue and process the routes
-      if (effectiveRoutes.isEmpty) {
+      if (effectiveMatches.isEmpty) {
         logWriter(() => 'No matching route found.', LogType.debug);
         await _respondNotFound(request, isDone);
       } else {
@@ -285,17 +348,17 @@ class Alfred {
         var nonWildcardRouteMatch = false;
 
         // Loop through the routes in the order they are in the routes list
-        for (var route in effectiveRoutes) {
+        for (var match in effectiveMatches) {
           if (isDone) {
             break;
           }
-          logWriter(() => 'Match route: ${route.route}', LogType.debug);
-          request.store.set('_internal_route', route.route);
+          logWriter(() => 'Match route: ${match.route.route}', LogType.debug);
+          request.store.set('_internal_match', match);
           nonWildcardRouteMatch =
-              !route.usesWildcardMatcher || nonWildcardRouteMatch;
+              !match.route.usesWildcardMatcher || nonWildcardRouteMatch;
 
           /// Loop through any middleware
-          for (var middleware in route.middleware) {
+          for (var middleware in match.route.middleware) {
             // If the request has already completed, exit early.
             if (isDone) {
               break;
@@ -313,7 +376,7 @@ class Alfred {
           }
           logWriter(() => 'Execute route callback function', LogType.debug);
           await _handleResponse(
-              await route.callback(request, request.response), request);
+              await match.route.callback(request, request.response), request);
         }
 
         /// If you got here and isDone is still false, you forgot to close
@@ -342,6 +405,7 @@ class Alfred {
       logWriter(() => s, LogType.error);
       if (onInternalError != null) {
         // Handle the error with a custom response
+        request.store.set('_internal_exception', e);
         final dynamic result =
             await onInternalError!(request, request.response);
         if (result != null && !isDone) {

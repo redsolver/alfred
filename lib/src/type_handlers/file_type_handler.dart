@@ -8,8 +8,7 @@ import '../extensions/response_helpers.dart';
 import 'type_handler.dart';
 
 TypeHandler get fileTypeHandler =>
-    TypeHandler<File>((HttpRequest req, HttpResponse res, dynamic file) async {
-      file = file as File;
+    TypeHandler<File>((HttpRequest req, HttpResponse res, File file) async {
       if (file.existsSync()) {
         res.headers.add('accept-ranges', 'bytes');
 

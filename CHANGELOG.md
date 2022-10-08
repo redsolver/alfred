@@ -1,3 +1,21 @@
+## 0.1.5+3
+
+- Fixing route handling if you have a parameter on the route. ie /:id
+
+## 0.1.5+2
+
+- Fixing bug that would try and listen to the stream from the body parser twice. Alfred now caches the body in the request store;
+
+## 0.1.5+1
+
+- Updating description to be easier to be found by pub.dev search
+
+## 0.1.5
+
+- Been a while since the last published update... lots of little changes but very few bugs. However thanks to @d-markey the routing logic has been completely rewritten though non api breaking, allowing far more complex matching of route parameters.
+- Fixed a bug that would overwrite the file content type if you manually specified it
+- Thanks to @d-markey for some other efficiency improvements as well
+
 ## 0.1.4+5
 
 - Fixing incorrect mime type recognition 
