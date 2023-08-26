@@ -1,8 +1,7 @@
 # Alfred
 
 A performant, expressjs like web server / rest api framework thats easy to use and has all the bits in one place.
-
-[![Build Status](https://api.travis-ci.com/rknell/alfred.svg?branch=master)](https://api.travis-ci.com/rknell/alfred)
+[![Build Status](https://github.com/rknell/alfred/workflows/Dart/badge.svg)](https://github.com/rknell/alfred/actions)
 
 Quickstart:
 
@@ -109,7 +108,7 @@ The big difference you will see is the option to not call `res.send` or `res.jso
 Each route accepts a Future as response. Currently you can pass back the following and it will be sent appropriately:
 
 | Return Dart Type | Returning REST type |
-| ---------------- | ------------------ |
+| ----------------- | ------------------ |
 | `List<dynamic>` | JSON |
 | `Map<String, Object?>` | JSON |
 | Serializable object (Object.toJSON or Object.toJson) * see note | JSON |
@@ -153,7 +152,7 @@ more detail: https://medium.com/@iapicca/alfred-an-express-like-server-framework
 Routing follows a similar pattern to the more basic ExpressJS routes. While there is some regex
 matching, mostly just stick with the route name and param syntax from Express:
 
-* `/path/to/:id/property` etc
+"/path/to/:id/property" etc
 
 The Express syntax has been extended to support parameter patterns and types. To enforce parameter
 validation, a regular expression or a type specifier should be provided after the parameter name, using
@@ -189,13 +188,13 @@ import 'package:alfred/alfred.dart';
 
 void main() async {
   final app = Alfred();
-  app.all('/example/:id:int/:name', (req, res) {
-    req.params['id'] != null;
-    req.params['id'] is int;
-    req.params['name'] != null;
-  });
   app.all('/example/:id/:name', (req, res) {
     req.params['id'] != null;
+    req.params['name'] != null;
+  });
+  app.all('/typed-example/:id:int/:name', (req, res) {
+    req.params['id'] != null;
+    req.params['id'] is int;
     req.params['name'] != null;
   });
   app.get('/blog/:date:date/:id:int', (req, res) {
@@ -214,7 +213,6 @@ can do this:
 
 ```dart
 import 'dart:async';
-import 'dart:io';
 
 import 'package:alfred/alfred.dart';
 
@@ -248,6 +246,17 @@ void main() async {
   app.all('/example/:id/:name', (req, res) {
     req.params['id'] != null;
     req.params['name'] != null;
+  });
+  app.all('/typed-example/:id:int/:name', (req, res) {
+    req.params['id'] != null;
+    req.params['id'] is int;
+    req.params['name'] != null;
+  });
+  app.get('/blog/:date:date/:id:int', (req, res) {
+    req.params['date'] != null;
+    req.params['date'] is DateTime;
+    req.params['id'] != null;
+    req.params['id'] is int;
   });
   await app.listen();
 }
@@ -314,32 +323,29 @@ Future<void> main() async {
   app.get('/files/*', (req, res) => _uploadDirectory);
 
   /// Example of handling a multipart/form-data file upload
-  app.post(
-      '/upload',
-      (req, res) => (HttpRequest req, HttpResponse res) async {
-            final body = await req.bodyAsJsonMap;
+  app.post('/upload', (req, res) async {
+    final body = await req.bodyAsJsonMap;
 
-            // Create the upload directory if it doesn't exist
-            if (await _uploadDirectory.exists() == false) {
-              await _uploadDirectory.create();
-            }
+    // Create the upload directory if it doesn't exist
+    if (await _uploadDirectory.exists() == false) {
+      await _uploadDirectory.create();
+    }
 
-            // Get the uploaded file content
-            final uploadedFile = (body['file'] as HttpBodyFileUpload);
-            var fileBytes = (uploadedFile.content as List<int>);
+    // Get the uploaded file content
+    final uploadedFile = (body['file'] as HttpBodyFileUpload);
+    var fileBytes = (uploadedFile.content as List<int>);
 
-            // Create the local file name and save the file
-            await File('${_uploadDirectory.absolute}/${uploadedFile.filename}')
-                .writeAsBytes(fileBytes);
+    // Create the local file name and save the file
+    await File('${_uploadDirectory.absolute}/${uploadedFile.filename}')
+        .writeAsBytes(fileBytes);
 
-            /// Return the path to the user
-            ///
-            /// The path is served from the /files route above
-            return ({
-              'path':
-                  'https://${req.headers.host ?? ''}/files/${uploadedFile.filename}'
-            });
-          });
+    /// Return the path to the user
+    ///
+    /// The path is served from the /files route above
+    return ({
+      'path': 'https://${req.headers.host ?? ''}/files/${uploadedFile.filename}'
+    });
+  });
 
   await app.listen();
 }
@@ -356,7 +362,7 @@ void main() async {
   final app = Alfred();
   app.all('*', (req, res) {
     // Perform action
-    req.headers.add('x-custom-header', "Alfred isn't bad");
+    res.headers.set('x-custom-header', "Alfred isn't bad");
 
     /// No need to call next as we don't send a response.
     /// Alfred will find the next matching route
@@ -377,11 +383,10 @@ You can also add middleware to a route, this is great to enforce authentication 
 
 ```dart
 import 'dart:async';
-import 'dart:io';
 
 import 'package:alfred/alfred.dart';
 
-FutureOr exampleMiddlware(HttpRequest req, HttpResponse res) {
+FutureOr exampleMiddleware(HttpRequest req, HttpResponse res) {
   // Do work
   if (req.headers.value('Authorization') != 'apikey') {
     throw AlfredException(401, {'message': 'authentication failed'});
@@ -390,7 +395,7 @@ FutureOr exampleMiddlware(HttpRequest req, HttpResponse res) {
 
 void main() async {
   final app = Alfred();
-  app.all('/example/:id/:name', (req, res) {}, middleware: [exampleMiddlware]);
+  app.all('/example/:id/:name', (req, res) {}, middleware: [exampleMiddleware]);
 
   await app.listen(); //Listening on port 3000
 }
@@ -411,7 +416,6 @@ There is a cors middleware supplied for your convenience. Its also a great examp
 
 ```dart
 import 'package:alfred/alfred.dart';
-import 'package:alfred/src/middleware/cors.dart';
 
 void main() async {
   final app = Alfred();
@@ -601,7 +605,6 @@ behaviour, but if you want to override it, simply handle it in the app declarati
 
 ```dart
 import 'dart:async';
-import 'dart:io';
 
 import 'package:alfred/alfred.dart';
 
@@ -682,10 +685,14 @@ Future<void> main() async {
       },
       onClose: (ws) {
         users.remove(ws);
-        users.forEach((user) => user.send('A user has left.'));
+        for (var user in users) {
+          user.send('A user has left.');
+        }
       },
       onMessage: (ws, dynamic data) async {
-        users.forEach((user) => user.send(data));
+        for (var user in users) {
+          user.send(data);
+        }
       },
     );
   });
@@ -765,5 +772,7 @@ https://ryan-knell.medium.com/build-and-deploy-a-dart-server-using-alfred-docker
 # Contributions
 
 PRs are welcome and encouraged! This is a community project and as long as the PR keeps within the key principles listed it will probably be accepted. If you have an improvement you would like to to add but are not sure just reach out in the issues section.
+
+NB. The readme is generated from the file in tool/templates/README.md which pulls in the actual source code from the example dart files - this way we can be sure its no pseudocode! If you need to change anything in the documentation please edit it there.
 
 Before you submit your code, you can run the `ci_checks.sh` shell script that will do many of the tests the CI suite will perform.

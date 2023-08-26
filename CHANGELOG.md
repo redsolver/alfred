@@ -1,3 +1,31 @@
+## 1.1.1
+
+- Adding additional crash protection
+
+## 1.1.0+2
+
+- Testing and updating compatibility with dart 3.0.0
+
+## 1.1.0+1
+
+- Readme edit
+
+## 1.1.0+0
+
+- Small breaking change - when body parsing fails Alfred now throws a BodyParserException which can be caught and handled manually. This may affect you if you have a try catch block but expect it to not catch (which lets face it is unlikely!)
+
+## 1.0.0+1
+
+- Just a bump to update the readme
+
+## 1.0.0
+
+- Moving to dart v2.17.x (thanks @NathanDraco22)
+- Fixing bug which prevent correct route parsing (thanks @jodinathan)
+- Adding modular routes with path prefixes and RouteGroups (thanks @scroff)
+- Removing outdated dependencies and moving to new linter (thansk @aadarshadhakalg)
+- Fixed a bug on dart 2.18 where regex typed routes wouldn't parse correctly.
+
 ## 0.1.7
 
 - Updating the CORS headers to also allow Access-Control-Expose-Headers thanks @Donk3ys

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:alfred/alfred.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/http.dart';
 import 'package:test/test.dart';
 
 import 'common.dart';
@@ -122,7 +123,7 @@ void main() {
     } catch (e) {
       expect(
         e.toString(),
-        contains('FileSystemException: Cannot open file, path'),
+        contains('Cannot open file'),
       );
     }
   });
@@ -205,11 +206,12 @@ void main() {
   test('it handles an options request', () async {
     app.options('/test', (req, res) => 'test string');
 
-    /// TODO: Need to find a way to send an options request. The HTTP library doesn't
-    /// seem to support it.
-    ///
-    // final response = await http.options(Uri.parse('http://localhost:$port/test'));
-    // expect(response.body, 'test string');
+    final response = await Response.fromStream(
+      await http.Client().send(
+        http.Request("OPTIONS", Uri.parse("http://localhost:$port/test")),
+      ),
+    );
+    expect(response.body, "test string");
   });
 
   test('it handles a HEAD request', () async {
@@ -641,24 +643,34 @@ void main() {
     final response = await http.post(Uri.parse('http://localhost:$port/test'),
         body: '{ "email": "test@test.com",}',
         headers: {'Content-Type': 'application/json'});
-    expect(response.statusCode, 400);
+    expect(response.statusCode, 500);
   });
 
-  test(
-      'it handles a failed body parser wrapped in a try catch block with a manual return (setting the header twice)',
-      () async {
+  test('it handles a failed body parser returning the default error', () async {
     app.post('/test', (req, res) async {
-      try {
-        await req.body;
-      } catch (e) {
-        res.statusCode = 500;
-        return {'error': true};
-      }
+      await req.body;
+      return "Body parser successful";
     });
     final response = await http.post(Uri.parse('http://localhost:$port/test'),
         body: '{ "email": "test@test.com",}',
         headers: {'Content-Type': 'application/json'});
     expect(response.statusCode, 400);
+    expect(response.body, "Bad Request");
+  });
+
+  test(
+      'doesn\'t crash the server when you change the status code after writing content',
+      () async {
+    app.get('/test', (req, res) async {
+      res.write('test');
+      res.statusCode = 401;
+    });
+    final response = await http.get(Uri.parse('http://localhost:$port/test'));
+
+    ///It should be a statuscode 200 because you can't change the status code
+    ///after writing to the response. However we need to check this get hit and
+    ///the server doesn't crash.
+    expect(response.statusCode, 200);
   });
 }
 

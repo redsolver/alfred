@@ -1,7 +1,0 @@
-language: dart
-before_script: dart format --set-exit-if-changed .
-dart:
-  - stable
-dart_task:
-  - test: --platform vm
-  - dartanalyzer: --fatal-warnings .
